@@ -85,16 +85,29 @@ def get_google_sheet(sheet_name):
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
     creds = None
-    error_msg = ""
-    for cred_file in CREDENTIALS_FILES:
+    # Thử đọc từ Streamlit Secrets trước (dành cho môi trường Cloud)
+    if "gcp_service_account" in st.secrets:
         try:
-            creds = ServiceAccountCredentials.from_json_keyfile_name(cred_file, scope)
-            break
+            creds_dict = dict(st.secrets["gcp_service_account"])
+            # Đảm bảo ký tự \n trong private_key được xử lý chính xác
+            if "private_key" in creds_dict:
+                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         except Exception as e:
-            error_msg = str(e)
+            st.sidebar.warning(f"Lỗi khi đọc credentials từ Secrets: {e}")
             
+    # Nếu không có Secrets, thử đọc từ file local
     if not creds:
-        raise FileNotFoundError(f"Không thể tải file credentials (đã thử cả credentials.json.json và credentials.json). Chi tiết: {error_msg}")
+        error_msg = ""
+        for cred_file in CREDENTIALS_FILES:
+            try:
+                creds = ServiceAccountCredentials.from_json_keyfile_name(cred_file, scope)
+                break
+            except Exception as e:
+                error_msg = str(e)
+                
+        if not creds:
+            raise FileNotFoundError(f"Không thể tải file credentials (đã thử cả Streamlit Secrets, credentials.json.json và credentials.json). Chi tiết: {error_msg}")
         
     client = gspread.authorize(creds)
     try:
@@ -103,12 +116,9 @@ def get_google_sheet(sheet_name):
     except gspread.exceptions.APIError as e:
         if "403" in str(e) or "permission" in str(e).lower():
             # Trích xuất email service account để hiển thị cho người dùng
-            try:
-                with open(cred_file, 'r') as f:
-                    cred_data = json.load(f)
-                    client_email = cred_data.get("client_email", "Email Service Account")
-            except:
-                client_email = "Email Service Account của bạn"
+            client_email = "techrecruit-hr@zinc-mantra-501613-g4.iam.gserviceaccount.com"
+            if creds and hasattr(creds, 'service_account_email'):
+                client_email = creds.service_account_email
             
             st.error("### 🛑 Lỗi phân quyền truy cập Google Sheets")
             st.markdown(f"""
