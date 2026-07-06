@@ -1,0 +1,13 @@
+# Google Sheets Credentials
+credentials.json
+credentials.json.json
+
+# Local Data cache
+local_candidates_data.csv
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Streamlit config/secrets (optional but good practice)
+.streamlit/
